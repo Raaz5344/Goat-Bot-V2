@@ -1,66 +1,46 @@
-"use_strict";
-/**
- * @author RFS-ADRENO
- * @rewrittenBy Isai Ivanov
- */
-const generateOfflineThreadingId = require('../utils');
+/* eslint-disable linebreak-style */
+"use strict";
 
-function canBeCalled(func) {
-	try {
-		Reflect.apply(func, null, []);
-		return true;
-	} catch (error) {
-		return false;
-	}
-}
-
-/**
- * A function for editing bot's messages.
- * @param {string} text - The text with which the bot will edit its messages.
- * @param {string} messageID - The message ID of the message the bot will edit.
- * @param {Object} callback - Callback for the function.
- */
+var utils = require("../utils");
 
 module.exports = function (defaultFuncs, api, ctx) {
-	return function editMessage(text, messageID, callback) {
-		if (!ctx.mqttClient) {
-			throw new Error('Not connected to MQTT');
-		}
+    return function editMessage(messageID, changedText, threadID, callback) {
+        if (!messageID || !changedText || !threadID) {
+            throw new Error("Missing required parameters.");
+        }
 
-		ctx.wsReqNumber += 1;
-		ctx.wsTaskNumber += 1;
+        try {
+            ctx.mqttClient.publish('/ls_req', 
+                JSON.stringify({
+                    app_id: "2220391788200892",
+                    payload: JSON.stringify({
+                        tasks: [{
+                            label: '742',
+                            payload: JSON.stringify({
+                                message_id: messageID,
+                                text: changedText
+                            }),
+                            queue_name: 'edit_message',
+                            task_id: Math.floor(Math.random() * 1001),
+                            failure_count: null,
+                        }],
+                        epoch_id: utils.generateOfflineThreadingID(),
+                        version_id: '7992185107461798',
+                    }),
+                    request_id: ctx.req_ID ? ++ctx.req_ID : (ctx.req_ID = 1),
+                    type: 3
+                }),
+                {
+                    qos: 1,
+                    retain: false
+                }
+            );
 
-		const queryPayload = {
-			message_id: messageID,
-			text: text
-		};
-
-		const query = {
-			failure_count: null,
-			label: '742',
-			payload: JSON.stringify(queryPayload),
-			queue_name: 'edit_message',
-			task_id: ctx.wsTaskNumber
-		};
-
-		const context = {
-			app_id: '2220391788200892',
-			payload: {
-				data_trace_id: null,
-				epoch_id: parseInt(generateOfflineThreadingId),
-				tasks: [query],
-				version_id: '6903494529735864'
-			},
-			request_id: ctx.wsReqNumber,
-			type: 3
-		};
-
-		context.payload = JSON.stringify(context.payload);
-
-		// if (canBeCalled(callback)) {
-		// 	ctx.reqCallbacks[ctx.wsReqNumber] = callback;
-		// }
-
-		ctx.mqttClient.publish('/ls_req', JSON.stringify(context), { qos: 1, retain: false });
-	};
+            if (callback) callback(null);
+            return true;
+        } catch (error) {
+            if (callback) callback(error);
+            return false;
+        }
+    };
 };
