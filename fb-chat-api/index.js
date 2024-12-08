@@ -1,608 +1,448 @@
-"use strict";
+'use strict';
+/* eslint-disable linebreak-style */
+const utils = require('./utils');
+global.Fca = new Object({
+    isThread: new Array(),
+    isUser: new Array(),
+    startTime: Date.now(),
+    Setting: new Map(),
+    Version: require('./package.json').version,
+    Require: new Object({
+        fs: require("fs"),
+        Fetch: require('got'),
+        log: require("npmlog"),
+        utils: require("./utils.js"),
+        logger: require('./logger.js'),
+        languageFile: require('./Language/index.json'),
+        Security: require('./Extra/Src/uuid.js')
+    }),
+    getText: function(/** @type {any[]} */...Data) {
+        var Main = (Data.splice(0,1)).toString();
+            for (let i = 0; i < Data.length; i++) Main = Main.replace(RegExp(`%${i + 1}`, 'g'), Data[i]);
+        return Main;
+    },
+    Data: new Object({
+        ObjFastConfig: {
+            "Language": "vi",
+            "PreKey": "",
+            "AutoUpdate": true,
+            "MainColor": "#9900FF",
+            "MainName": "[ FCA-HZI ]",
+            "Uptime": false,
+            "Config": "default",
+            "DevMode": false,
+            "Login2Fa": false,
+            "AutoLogin": false,
+            "BroadCast": true,
+            "AuthString": "SD4S XQ32 O2JA WXB3 FUX2 OPJ7 Q7JZ 4R6Z | https://i.imgur.com/RAg3rvw.png Please remove this !, Recommend If You Using getUserInfoV2",
+            "EncryptFeature": true,
+            "ResetDataLogin": false,
+            "AutoInstallNode": false,
+            "AntiSendAppState": true,
+            "AutoRestartMinutes": 0,
+            "RestartMQTT_Minutes": 0,
+            "Websocket_Extension": {
+                "Status": false,
+                "ResetData": false,
+                "AppState_Path": "appstate.json"
+            },
+            "HTML": {   
+                "HTML": true,
+                "UserName": "Guest",
+                "MusicLink": "https://drive.google.com/uc?id=1zlAALlxk1TnO7jXtEP_O6yvemtzA2ukA&export=download"
+            },
+            "AntiGetInfo": {
+                "Database_Type": "default", //json or default
+                "AntiGetThreadInfo": true,
+                "AntiGetUserInfo": true
+            },
+            "Stable_Version": {
+                "Accept": false,
+                "Version": ""
+            },
+            "CheckPointBypass": {
+                "956": {
+                    "Allow": false,
+                    "Difficult": "Easy",
+                    "Notification": "Turn on with AutoLogin!"
+                }
+            },
+            "AntiStuckAndMemoryLeak": {
+                "AutoRestart": {
+                    "Use": true,
+                    "Explain": "When this feature is turned on, the system will continuously check and confirm that if memory usage reaches 90%, it will automatically restart to avoid freezing or stopping."
+                },
+                "LogFile": {
+                    "Use": false,
+                    "Explain": "Record memory usage logs to fix errors. Default location: Horizon_Database/memory.logs"
+                }
+            }
+        },
+        CountTime: function() {
+            var fs = global.Fca.Require.fs;
+            if (fs.existsSync(__dirname + '/CountTime.json')) {
+                try {
+                    var data = Number(fs.readFileSync(__dirname + '/CountTime.json', 'utf8')),
+                    hours = Math.floor(data / (60 * 60));
+                }
+                catch (e) {
+                    fs.writeFileSync(__dirname + '/CountTime.json', 0);
+                    hours = 0;
+                }
+            }
+            else {
+                hours = 0;
+            }
+            return `${hours} Hours`;
+        }
+    }),
+    Action: async function(Type, ctx, Code, defaultFuncs) {
+        switch (Type) {
+            case "AutoLogin": {
+                var Database = require('./Extra/Database');
+                var logger = global.Fca.Require.logger;
+                var Email = (Database().get('Account')).replace(RegExp('"', 'g'), ''); //hmm IDK
+                var PassWord = (Database().get('Password')).replace(RegExp('"', 'g'), '');
+                require('./Main')({ email: Email, password: PassWord},async (error, api) => {
+                    if (error) {
+                        logger.Error(JSON.stringify(error,null,2), function() { logger.Error("AutoLogin Failed!", function() { process.exit(0); }) });
+                    }
+                    try {
+                        Database().set("TempState", Database().get('Through2Fa'));
+                    }
+                    catch(e) {
+                        logger.Warning(global.Fca.Require.Language.Index.ErrDatabase);
+                            logger.Error();
+                        process.exit(0);
+                    }
+                    process.exit(1);
+                });
+            }
+            break;
+            case "Bypass": {
+                const Bypass_Module = require(`./Extra/Bypass/${Code}`);
+                const logger = global.Fca.Require.logger;
+                switch (Code) {
+                    case 956: {
+                        async function P1() {
+                            return new Promise((resolve, reject) => {
+                                try {
+                                    utils.get('https://www.facebook.com/checkpoint/828281030927956/?next=https%3A%2F%2Faccountscenter.facebook.com%2Fpassword_and_security', ctx.jar, null, ctx.globalOptions).then(function(data) {
+                                        resolve(Bypass_Module.Check(data.body));    
+                                    })
+                                } 
+                                catch (error) {
+                                    reject(error);
+                                }
+                            })
+                        }
+                        try {
+                            const test = await P1();
+                            if (test != null && test != '' && test != undefined) {
+                                const resp = await Bypass_Module.Cook_And_Work(ctx, defaultFuncs)
+                                if (resp == true) return logger.Success("Bypassing 956 successfully!", function() { return process.exit(1); })
+                                else return logger.Error("Bypass 956 failed ! DO YOUR SELF :>", function() { process.exit(0) });
+                            }
+                        }
+                        catch (e) {
+                            logger.Error("Bypass 956 failed ! DO YOUR SELF :>", function() { process.exit(0) })
+                        }
+                    }
+                }
+            }
+            break;
+            default: {
+                require('npmlog').Error("Invalid Message!");
+            };
+        }
+    }
+});
 
-const utils = require("./utils");
-const cheerio = require("cheerio");
-const log = require("npmlog");
+try {
+    let Boolean_Fca = ["AntiSendAppState","AutoUpdate","Uptime","BroadCast","EncryptFeature","AutoLogin","ResetDataLogin","Login2Fa", "DevMode","AutoInstallNode"];
+    let String_Fca = ["MainName","PreKey","Language","AuthString","Config"]
+    let Number_Fca = ["AutoRestartMinutes","RestartMQTT_Minutes"];
+    let Object_Fca = ["HTML","Stable_Version","AntiGetInfo","Websocket_Extension", "CheckPointBypass", "AntiStuckAndMemoryLeak"];
+    let All_Variable = Boolean_Fca.concat(String_Fca,Number_Fca,Object_Fca);
 
-let checkVerified = null;
 
-const defaultLogRecordSize = 100;
-log.maxRecordSize = defaultLogRecordSize;
+    if (!global.Fca.Require.fs.existsSync(process.cwd() + '/FastConfigFca.json')) {
+        global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(global.Fca.Data.ObjFastConfig, null, "\t"));
+        process.exit(1);
+    }
 
-function setOptions(globalOptions, options) {
-	Object.keys(options).map(function (key) {
-		switch (key) {
-			case 'pauseLog':
-				if (options.pauseLog) log.pause();
-				break;
-			case 'online':
-				globalOptions.online = Boolean(options.online);
-				break;
-			case 'logLevel':
-				log.level = options.logLevel;
-				globalOptions.logLevel = options.logLevel;
-				break;
-			case 'logRecordSize':
-				log.maxRecordSize = options.logRecordSize;
-				globalOptions.logRecordSize = options.logRecordSize;
-				break;
-			case 'selfListen':
-				globalOptions.selfListen = Boolean(options.selfListen);
-				break;
-			case 'listenEvents':
-				globalOptions.listenEvents = Boolean(options.listenEvents);
-				break;
-			case 'pageID':
-				globalOptions.pageID = options.pageID.toString();
-				break;
-			case 'updatePresence':
-				globalOptions.updatePresence = Boolean(options.updatePresence);
-				break;
-			case 'forceLogin':
-				globalOptions.forceLogin = Boolean(options.forceLogin);
-				break;
-			case 'userAgent':
-				globalOptions.userAgent = options.userAgent;
-				break;
-			case 'autoMarkDelivery':
-				globalOptions.autoMarkDelivery = Boolean(options.autoMarkDelivery);
-				break;
-			case 'autoMarkRead':
-				globalOptions.autoMarkRead = Boolean(options.autoMarkRead);
-				break;
-			case 'listenTyping':
-				globalOptions.listenTyping = Boolean(options.listenTyping);
-				break;
-			case 'proxy':
-				if (typeof options.proxy != "string") {
-					delete globalOptions.proxy;
-					utils.setProxy();
-				} else {
-					globalOptions.proxy = options.proxy;
-					utils.setProxy(globalOptions.proxy);
-				}
-				break;
-			case 'autoReconnect':
-				globalOptions.autoReconnect = Boolean(options.autoReconnect);
-				break;
-			case 'emitReady':
-				globalOptions.emitReady = Boolean(options.emitReady);
-				break;
-			default:
-				log.warn("setOptions", "Unrecognized option given to setOptions: " + key);
-				break;
-		}
-	});
+try {
+    var Data_Setting = require(process.cwd() + "/FastConfigFca.json");
+}
+catch (e) {
+    global.Fca.Require.logger.Error('Detect Your FastConfigFca Settings Invalid!, Carry out default restoration');
+    global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(global.Fca.Data.ObjFastConfig, null, "\t"));     
+    process.exit(1)
+}
+    if (global.Fca.Require.fs.existsSync(process.cwd() + '/FastConfigFca.json')) {
+        
+        for (let i of All_Variable) {
+            if (Data_Setting[i] == undefined) {
+                Data_Setting[i] = global.Fca.Data.ObjFastConfig[i];
+                global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(Data_Setting, null, "\t"));
+            }
+            else continue; 
+        } //Check Variable
+
+        for (let i in Data_Setting) {
+            if (Boolean_Fca.includes(i)) {
+                if (global.Fca.Require.utils.getType(Data_Setting[i]) != "Boolean") logger.Error(i + " Is Not A Boolean, Need To Be true Or false !", function() { process.exit(0) });
+                else continue;
+            }
+            else if (String_Fca.includes(i)) {
+                if (global.Fca.Require.utils.getType(Data_Setting[i]) != "String") logger.Error(i + " Is Not A String, Need To Be String!", function() { process.exit(0) });
+                else continue;
+            }
+            else if (Number_Fca.includes(i)) {
+                if (global.Fca.Require.utils.getType(Data_Setting[i]) != "Number") logger.Error(i + " Is Not A Number, Need To Be Number !", function() { process.exit(0) });
+                else continue;
+            }
+            else if (Object_Fca.includes(i)) {
+                if (global.Fca.Require.utils.getType(Data_Setting[i]) != "Object") {
+                    Data_Setting[i] = global.Fca.Data.ObjFastConfig[i];
+                    global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(Data_Setting, null, "\t"));
+                }
+                else continue;
+            }
+        }
+
+        for (let i of Object_Fca) {
+            const All_Paths = utils.getPaths(global.Fca.Data.ObjFastConfig[i]);
+            const Mission = { Main_Path: i, Data_Path: All_Paths }
+            for (let i of Mission.Data_Path) {
+                if (Data_Setting[Mission.Main_Path] == undefined) {
+                    Data_Setting[Mission.Main_Path] = global.Fca.Data.ObjFastConfig[Mission.Main_Path];
+                    global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(Data_Setting, null, "\t"));      
+                }
+                const User_Data = (utils.getData_Path(Data_Setting[Mission.Main_Path], i, 0))
+                const User_Data_Type = utils.getType(User_Data);
+                if (User_Data_Type == "Number") {
+                    const Mission_Path = User_Data == 0 ? i : i.slice(0, User_Data); 
+                    const Mission_Obj = utils.getData_Path(global.Fca.Data.ObjFastConfig[Mission.Main_Path], Mission_Path, 0);
+                    Data_Setting[Mission.Main_Path] = utils.setData_Path(Data_Setting[Mission.Main_Path], Mission_Path, Mission_Obj)
+                    global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(Data_Setting, null, "\t"));      
+                }
+            }
+        }
+
+        if (!global.Fca.Require.languageFile.some((/** @type {{ Language: string; }} */i) => i.Language == Data_Setting.Language)) { 
+            global.Fca.Require.logger.Warning("Not Support Language: " + Data_Setting.Language + " Only 'en' and 'vi'");
+            process.exit(0); 
+        }
+        global.Fca.Require.Language = global.Fca.Require.languageFile.find((/** @type {{ Language: string; }} */i) => i.Language == Data_Setting.Language).Folder;
+    } else process.exit(1);
+    global.Fca.Require.FastConfig = Data_Setting;
+}
+catch (e) {
+    console.log(e);
+    global.Fca.Require.logger.Error();
 }
 
-function buildAPI(globalOptions, html, jar) {
-	const maybeCookie = jar.getCookies("https://www.facebook.com").filter(function (val) {
-		return val.cookieString().split("=")[0] === "c_user";
-	});
-
-	const objCookie = jar.getCookies("https://www.facebook.com").reduce(function (obj, val) {
-		obj[val.cookieString().split("=")[0]] = val.cookieString().split("=")[1];
-		return obj;
-	}, {});
-
-	if (maybeCookie.length === 0) {
-		throw { error: "Error retrieving userID. This can be caused by a lot of things, including getting blocked by Facebook for logging in from an unknown location. Try logging in with a browser to verify." };
-	}
-
-	if (html.indexOf("/checkpoint/block/?next") > -1) {
-		log.warn("login", "Checkpoint detected. Please log in with a browser to verify.");
-	}
-
-	const userID = maybeCookie[0].cookieString().split("=")[1].toString();
-	const i_userID = objCookie.i_user || null;
-	log.info("login", `Logged in as ${userID}`);
-
-	try {
-		clearInterval(checkVerified);
-	} catch (_) { }
-
-	const clientID = (Math.random() * 2147483648 | 0).toString(16);
-
-	const oldFBMQTTMatch = html.match(/irisSeqID:"(.+?)",appID:219994525426954,endpoint:"(.+?)"/);
-	let mqttEndpoint = null;
-	let region = null;
-	let irisSeqID = null;
-	let noMqttData = null;
-
-	if (oldFBMQTTMatch) {
-		irisSeqID = oldFBMQTTMatch[1];
-		mqttEndpoint = oldFBMQTTMatch[2];
-		region = new URL(mqttEndpoint).searchParams.get("region").toUpperCase();
-
-	} else {
-		const newFBMQTTMatch = html.match(/{"app_id":"219994525426954","endpoint":"(.+?)","iris_seq_id":"(.+?)"}/);
-		if (newFBMQTTMatch) {
-			irisSeqID = newFBMQTTMatch[2];
-			mqttEndpoint = newFBMQTTMatch[1].replace(/\\\//g, "/");
-			region = new URL(mqttEndpoint).searchParams.get("region").toUpperCase();
-
-		} else {
-			const legacyFBMQTTMatch = html.match(/(\["MqttWebConfig",\[\],{fbid:")(.+?)(",appID:219994525426954,endpoint:")(.+?)(",pollingEndpoint:")(.+?)(3790])/);
-			if (legacyFBMQTTMatch) {
-				mqttEndpoint = legacyFBMQTTMatch[4];
-				region = new URL(mqttEndpoint).searchParams.get("region").toUpperCase();
-				log.warn("login", `Cannot get sequence ID with new RegExp. Fallback to old RegExp (without seqID)...`);
-				log.info("login", `Got this account's message region: ${region}`);
-				log.info("login", `[Unused] Polling endpoint: ${legacyFBMQTTMatch[6]}`);
-
-			} else {
-				log.warn("login", "Cannot get MQTT region & sequence ID.");
-				noMqttData = html;
-			}
-		}
-	}
-
-	// All data available to api functions
-	const ctx = {
-		userID: userID,
-		i_userID: i_userID,
-		jar: jar,
-		clientID: clientID,
-		globalOptions: globalOptions,
-		loggedIn: true,
-		access_token: 'NONE',
-		clientMutationId: 0,
-		mqttClient: undefined,
-		lastSeqId: irisSeqID,
-		syncToken: undefined,
-		wsReqNumber: 0,
-		wsTaskNumber: 0,
-		reqCallbacks: {},
-		mqttEndpoint,
-		region,
-		firstListen: true
-	};
-
-	const api = {
-		setOptions: setOptions.bind(null, globalOptions),
-		getAppState: function getAppState() {
-			const appState = utils.getAppState(jar);
-			// filter duplicate
-			return appState.filter((item, index, self) => self.findIndex((t) => { return t.key === item.key; }) === index);
-		}
-	};
-
-	if (noMqttData) {
-		api["htmlData"] = noMqttData;
-	}
-
-	const apiFuncNames = [
-		'addExternalModule',
-		'addUserToGroup',
-		'changeAdminStatus',
-		'changeArchivedStatus',
-		'changeAvatar',
-		'changeBio',
-		'changeBlockedStatus',
-		'changeGroupImage',
-		'changeNickname',
-		'changeThreadColor',
-		'changeThreadEmoji',
-		'createNewGroup',
-		'createPoll',
-		'deleteMessage',
-		'deleteThread',
-		'forwardAttachment',
-		'getCurrentUserID',
-		'getEmojiUrl',
-		'getFriendsList',
-		'getMessage',
-		'getThreadHistory',
-		'getThreadInfo',
-		'getThreadList',
-		'getThreadPictures',
-		'getUserID',
-		'getUserInfo',
-		'handleFriendRequest',
-		'handleMessageRequest',
-		'listenMqtt',
-		'logout',
-		'markAsDelivered',
-		'markAsRead',
-		'markAsReadAll',
-		'markAsSeen',
-		'muteThread',
-		'refreshFb_dtsg',
-		'removeUserFromGroup',
-		'resolvePhotoUrl',
-		'searchForThread',
-		'sendMessage',
-		'sendTypingIndicator',
-		'setMessageReaction',
-		'setPostReaction',
-		'setTitle',
-		'threadColors',
-		'unsendMessage',
-		'unfriend',
-		'uploadAttachment',
-		'editMessage',
-
-		// HTTP
-		'httpGet',
-		'httpPost',
-		'httpPostFormData'
-	];
-
-	const defaultFuncs = utils.makeDefaults(html, userID, ctx);
-
-	// Load all api functions in a loop
-	apiFuncNames.map(v => api[v] = require('./src/' + v)(defaultFuncs, api, ctx));
-
-	return [ctx, defaultFuncs, api];
+/*
+if (global.Fca.Require.FastConfig.Websocket_Extension.Status) {
+    console.history = new Array();
+    var Convert = require('ansi-to-html');
+    var convert = new Convert();
+    console.__log = console.log;
+    console.log = function (data) {
+        const log = convert.toHtml(data)
+        console.history.push(log)
+        console.__log.apply(console,arguments)
+        if (console.history.length > 80) {
+            console.history.shift();
+        }
+    }
 }
+**/
 
-function makeLogin(jar, email, password, loginOptions, callback, prCallback) {
-	return function (res) {
-		const html = res.body;
-		const $ = cheerio.load(html);
-		let arr = [];
+module.exports = function(loginData, options, callback) {
+    //const Language = global.Fca.Require.languageFile.find((/** @type {{ Language: string; }} */i) => i.Language == global.Fca.Require.FastConfig.Language).Folder.Index;
+    var login;
+    try {
+        login = require('./Main');
+    }
+    catch (e) {
+        console.log(e)
+    }
+    //const fs = require('fs-extra');
+    //const got = require('got');
+    //const log = require('npmlog');
+    //const { execSync } = require('child_process');
+ require('./Extra/Database');
+    
+    /*
+    return got.get('https://github.com/KanzuXHorizon/Global_Horizon/raw/main/InstantAction.json').then(async function(res) {
+        if (global.Fca.Require.FastConfig.AutoInstallNode) {
+            switch (fs.existsSync(process.cwd() + "/replit.nix") && process.env["REPL_ID"] != undefined) {
+                case true: {
+                    await require('./Extra/Src/Change_Environment.js')();
+                    break;
+                }
+                case false: {
+                    const NodeVersion = execSync('node -v').toString().replace(/(\r\n|\n|\r)/gm, "");
+                    if (!NodeVersion.includes("v14") && !NodeVersion.includes("v16") && !Database(true).has('SkipReplitNix')) {
+                        log.warn("[ FCA-UPDATE ] •",global.Fca.getText(Language.NodeVersionNotSupported, NodeVersion));
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                        try {
+                            switch (process.platform) {
+                                case "win32": {
+                                    try {
+                                    //check if user using nvm 
+                                        if (fs.existsSync(process.env.APPDATA + "/nvm/nvm.exe")) {
+                                            log.warn("[ FCA-UPDATE ] •", Language.UsingNVM);
+                                            process.exit(0);
+                                        }
+                                        //download NodeJS v14 for Windows and slient install
+                                        await got('https://nodejs.org/dist/v14.17.0/node-v14.17.0-x64.msi').pipe(fs.createWriteStream(process.cwd() + "/node-v14.17.0-x64.msi"));
+                                        log.info("[ FCA-UPDATE ] •", Language.DownloadingNode);
+                                        await new Promise(resolve => setTimeout(resolve, 3000));
+                                        execSync('msiexec /i node-v14.17.0-x64.msi /qn');
+                                        log.info("[ FCA-UPDATE ] •", Language.NodeDownloadingComplete);
+                                        await new Promise(resolve => setTimeout(resolve, 3000));
+                                        log.info("[ FCA-UPDATE ] •", Language.RestartRequire);
+                                        Database(true).set("NeedRebuild", true);
+                                        process.exit(0);
+                                    }
+                                    catch (e) {
+                                        log.error("[ FCA-UPDATE ] •",Language.ErrNodeDownload);
+                                        process.exit(0);
+                                    }
+                                }
+                                case "linux": {
 
-		// This will be empty, but just to be sure we leave it
-		$("#login_form input").map((i, v) => arr.push({ val: $(v).val(), name: $(v).attr("name") }));
+                                    try {
+                                        if (process.env["REPL_ID"] != undefined) {
+                                            log.warn("[ FCA-UPDATE ] •", "Look like you are using Replit, and didn't have replit.nix file in your project, i don't know how to help you, hmm i will help you pass this step, but you need to install NodeJS v14 by yourself, and restart your repl");
+                                            Database(true).set('SkipReplitNix', true);
+                                            await new Promise(resolve => setTimeout(resolve, 3000));
+                                            process.exit(1);
+                                        }
+                                            //check if user using nvm 
+                                            if (fs.existsSync(process.env.HOME + "/.nvm/nvm.sh")) {
+                                                log.warn("[ FCA-UPDATE ] •", Language.UsingNVM);
+                                                process.exit(0);
+                                            }
+                                            //download NodeJS v14 for Linux and slient install
+                                            await got('https://nodejs.org/dist/v14.17.0/node-v14.17.0-linux-x64.tar.xz').pipe(fs.createWriteStream(process.cwd() + "/node-v14.17.0-linux-x64.tar.xz"));
+                                            log.info("[ FCA-UPDATE ] •", Language.DownloadingNode);
+                                            await new Promise(resolve => setTimeout(resolve, 3000));
+                                            execSync('tar -xf node-v14.17.0-linux-x64.tar.xz');
+                                            execSync('cd node-v14.17.0-linux-x64');
+                                            execSync('sudo cp -R * /usr/local/');
+                                            log.info("[ FCA-UPDATE ] •", Language.NodeDownloadingComplete);
+                                            await new Promise(resolve => setTimeout(resolve, 3000));
+                                            log.info("[ FCA-UPDATE ] •",Language.RestartingN);
+                                            Database(true).set("NeedRebuild", true);
+                                            process.exit(1);                                
+                                        }
+                                        catch (e) {
+                                            log.error("[ FCA-UPDATE ] •",Language.ErrNodeDownload);
+                                            process.exit(0);
+                                        }
+                                }
+                                case "darwin": {
+                                    try {
+                                        //check if user using nvm 
+                                        if (fs.existsSync(process.env.HOME + "/.nvm/nvm.sh")) {
+                                            log.warn("[ FCA-UPDATE ] •", Language.UsingNVM);
+                                            process.exit(0);
+                                        }
+                                        //download NodeJS v14 for MacOS and slient install
+                                        await got('https://nodejs.org/dist/v14.17.0/node-v14.17.0-darwin-x64.tar.gz').pipe(fs.createWriteStream(process.cwd() + "/node-v14.17.0-darwin-x64.tar.gz"));
+                                        log.info("[ FCA-UPDATE ] •", Language.DownloadingNode);
+                                        await new Promise(resolve => setTimeout(resolve, 3000));
+                                        execSync('tar -xf node-v14.17.0-darwin-x64.tar.gz');
+                                        execSync('cd node-v14.17.0-darwin-x64');
+                                        execSync('sudo cp -R * /usr/local/');
+                                        log.info("[ FCA-UPDATE ] •", Language.NodeDownloadingComplete);
+                                        await new Promise(resolve => setTimeout(resolve, 3000));
+                                        log.info("[ FCA-UPDATE ] •",Language.RestartingN);
+                                        Database(true).set("NeedRebuild", true);
+                                        process.exit(1);
+                                    }
+                                    catch (e) {
+                                        log.error("[ FCA-UPDATE ] •",Language.ErrNodeDownload);
+                                        process.exit(0);
+                                    }
+                                }
+                            }
+                        }
+                        catch (e) {
+                            console.log(e);
+                            log.error("[ FCA-UPDATE ] •","NodeJS v14 Installation Failed, Please Try Again and Contact fb.com/Lazic.Kanzu!");
+                            process.exit(0);
+                        }
+                    }
+                }
+            }
+        }
+        if ((Database(true).get("NeedRebuild")) == true) {
+            Database(true).set("NeedRebuild", false);
+            log.info("[ FCA-UPDATE ] •",Language.Rebuilding);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            try {
+                execSync('npm rebuild', {stdio: 'inherit'});
+            }
+            catch (e) {
+                console.log(e);
+                log.error("[ FCA-UPDATE ] •",Language.ErrRebuilding);
+            }
+            log.info("[ FCA-UPDATE ] •",Language.SuccessRebuilding);
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            log.info("[ FCA-UPDATE ] •",Language.RestartingN);
+            process.exit(1);
+        }
 
-		arr = arr.filter(function (v) {
-			return v.val && v.val.length;
-		});
-
-		const form = utils.arrToForm(arr);
-		form.lsd = utils.getFrom(html, "[\"LSD\",[],{\"token\":\"", "\"}");
-		form.lgndim = Buffer.from("{\"w\":1440,\"h\":900,\"aw\":1440,\"ah\":834,\"c\":24}").toString('base64');
-		form.email = email;
-		form.pass = password;
-		form.default_persistent = '0';
-		form.lgnrnd = utils.getFrom(html, "name=\"lgnrnd\" value=\"", "\"");
-		form.locale = 'en_US';
-		form.timezone = '240';
-		form.lgnjs = ~~(Date.now() / 1000);
-
-
-		// Getting cookies from the HTML page... (kill me now plz)
-		// we used to get a bunch of cookies in the headers of the response of the
-		// request, but FB changed and they now send those cookies inside the JS.
-		// They run the JS which then injects the cookies in the page.
-		// The "solution" is to parse through the html and find those cookies
-		// which happen to be conveniently indicated with a _js_ in front of their
-		// variable name.
-		//
-		// ---------- Very Hacky Part Starts -----------------
-		const willBeCookies = html.split("\"_js_");
-		willBeCookies.slice(1).map(function (val) {
-			const cookieData = JSON.parse("[\"" + utils.getFrom(val, "", "]") + "]");
-			jar.setCookie(utils.formatCookie(cookieData, "facebook"), "https://www.facebook.com");
-		});
-		// ---------- Very Hacky Part Ends -----------------
-
-
-		return utils
-			.post("https://www.facebook.com/login/device-based/regular/login/?login_attempt=1&lwv=110", jar, form, loginOptions)
-			.then(utils.saveCookies(jar))
-			.then(function (res) {
-				const headers = res.headers;
-				if (!headers.location) throw { error: "Wrong username/password." };
-
-				// This means the account has login approvals turned on.
-				if (headers.location.indexOf('https://www.facebook.com/checkpoint/') > -1) {
-					log.info("login", "You have login approvals turned on.");
-					const nextURL = 'https://www.facebook.com/checkpoint/?next=https%3A%2F%2Fwww.facebook.com%2Fhome.php';
-
-					return utils
-						.get(headers.location, jar, null, loginOptions)
-						.then(utils.saveCookies(jar))
-						.then(function (res) {
-							const html = res.body;
-							// Make the form in advance which will contain the fb_dtsg and nh
-							const $ = cheerio.load(html);
-							let arr = [];
-							$("form input").map((i, v) => arr.push({ val: $(v).val(), name: $(v).attr("name") }));
-
-							arr = arr.filter(function (v) {
-								return v.val && v.val.length;
-							});
-
-							const form = utils.arrToForm(arr);
-							if (html.indexOf("checkpoint/?next") > -1) {
-								setTimeout(() => {
-									checkVerified = setInterval((_form) => { }, 5000, {
-										fb_dtsg: form.fb_dtsg,
-										jazoest: form.jazoest,
-										dpr: 1
-									});
-								}, 2500);
-								throw {
-									error: 'login-approval',
-									continue: function submit2FA(code) {
-										form.approvals_code = code;
-										form['submit[Continue]'] = $("#checkpointSubmitButton").html(); //'Continue';
-										let prResolve = null;
-										let prReject = null;
-										const rtPromise = new Promise(function (resolve, reject) {
-											prResolve = resolve;
-											prReject = reject;
-										});
-										if (typeof code == "string") {
-											utils
-												.post(nextURL, jar, form, loginOptions)
-												.then(utils.saveCookies(jar))
-												.then(function (res) {
-													const $ = cheerio.load(res.body);
-													const error = $("#approvals_code").parent().attr("data-xui-error");
-													if (error) {
-														throw {
-															error: 'login-approval',
-															errordesc: "Invalid 2FA code.",
-															lerror: error,
-															continue: submit2FA
-														};
-													}
-												})
-												.then(function () {
-													// Use the same form (safe I hope)
-													delete form.no_fido;
-													delete form.approvals_code;
-													form.name_action_selected = 'dont_save'; //'save_device';
-
-													return utils.post(nextURL, jar, form, loginOptions).then(utils.saveCookies(jar));
-												})
-												.then(function (res) {
-													const headers = res.headers;
-													if (!headers.location && res.body.indexOf('Review Recent Login') > -1) throw { error: "Something went wrong with login approvals." };
-
-													const appState = utils.getAppState(jar);
-
-													if (callback === prCallback) {
-														callback = function (err, api) {
-															if (err) return prReject(err);
-															return prResolve(api);
-														};
-													}
-
-													// Simply call loginHelper because all it needs is the jar
-													// and will then complete the login process
-													return loginHelper(appState, email, password, loginOptions, callback);
-												})
-												.catch(function (err) {
-													// Check if using Promise instead of callback
-													if (callback === prCallback) prReject(err);
-													else callback(err);
-												});
-										} else {
-											utils
-												.post("https://www.facebook.com/checkpoint/?next=https%3A%2F%2Fwww.facebook.com%2Fhome.php", jar, form, loginOptions, null, { "Referer": "https://www.facebook.com/checkpoint/?next" })
-												.then(utils.saveCookies(jar))
-												.then(res => {
-													try {
-														JSON.parse(res.body.replace(/for\s*\(\s*;\s*;\s*\)\s*;\s*/, ""));
-													} catch (ex) {
-														clearInterval(checkVerified);
-														log.info("login", "Verified from browser. Logging in...");
-														if (callback === prCallback) {
-															callback = function (err, api) {
-																if (err) return prReject(err);
-																return prResolve(api);
-															};
-														}
-														return loginHelper(utils.getAppState(jar), email, password, loginOptions, callback);
-													}
-												})
-												.catch(ex => {
-													log.error("login", ex);
-													if (callback === prCallback) prReject(ex);
-													else callback(ex);
-												});
-										}
-										return rtPromise;
-									}
-								};
-							} else {
-								if (!loginOptions.forceLogin) throw { error: "Couldn't login. Facebook might have blocked this account. Please login with a browser or enable the option 'forceLogin' and try again." };
-
-								if (html.indexOf("Suspicious Login Attempt") > -1) form['submit[This was me]'] = "This was me";
-								else form['submit[This Is Okay]'] = "This Is Okay";
-
-								return utils
-									.post(nextURL, jar, form, loginOptions)
-									.then(utils.saveCookies(jar))
-									.then(function () {
-										// Use the same form (safe I hope)
-										form.name_action_selected = 'save_device';
-
-										return utils.post(nextURL, jar, form, loginOptions).then(utils.saveCookies(jar));
-									})
-									.then(function (res) {
-										const headers = res.headers;
-
-										if (!headers.location && res.body.indexOf('Review Recent Login') > -1) throw { error: "Something went wrong with review recent login." };
-
-										const appState = utils.getAppState(jar);
-
-										// Simply call loginHelper because all it needs is the jar
-										// and will then complete the login process
-										return loginHelper(appState, email, password, loginOptions, callback);
-									})
-									.catch(e => callback(e));
-							}
-						});
-				}
-
-				return utils.get('https://www.facebook.com/', jar, null, loginOptions).then(utils.saveCookies(jar));
-			});
-	};
-}
-
-// Helps the login
-function loginHelper(appState, email, password, globalOptions, callback, prCallback) {
-	let mainPromise = null;
-	const jar = utils.getJar();
-
-	// If we're given an appState we loop through it and save each cookie
-	// back into the jar.
-	if (appState) {
-		// check and convert cookie to appState
-		if (utils.getType(appState) === 'Array' && appState.some(c => c.name)) {
-			appState = appState.map(c => {
-				c.key = c.name;
-				delete c.name;
-				return c;
-			});
-		}
-		else if (utils.getType(appState) === 'String') {
-			const arrayAppState = [];
-			appState.split(';').forEach(c => {
-				const [key, value] = c.split('=');
-
-				arrayAppState.push({
-					key: (key || "").trim(),
-					value: (value || "").trim(),
-					domain: "facebook.com",
-					path: "/",
-					expires: new Date().getTime() + 1000 * 60 * 60 * 24 * 365
-				});
-			});
-			appState = arrayAppState;
-		}
-
-		appState.map(function (c) {
-			const str = c.key + "=" + c.value + "; expires=" + c.expires + "; domain=" + c.domain + "; path=" + c.path + ";";
-			jar.setCookie(str, "http://" + c.domain);
-		});
-
-		// Load the main page.
-		mainPromise = utils.get('https://www.facebook.com/', jar, null, globalOptions, { noRef: true }).then(utils.saveCookies(jar));
-	} else {
-		// Open the main page, then we login with the given credentials and finally
-		// load the main page again (it'll give us some IDs that we need)
-		mainPromise = utils
-			.get("https://www.facebook.com/", null, null, globalOptions, { noRef: true })
-			.then(utils.saveCookies(jar))
-			.then(makeLogin(jar, email, password, globalOptions, callback, prCallback))
-			.then(function () {
-				return utils.get('https://www.facebook.com/', jar, null, globalOptions).then(utils.saveCookies(jar));
-			});
-	}
-
-
-	let redirectArr = [1, "https://m.facebook.com/"];
-	let ctx;
-	let api;
-	function checkAndFixErr(res) {
-		const reg_antierr = /This browser is not supported/gs;
-		if (reg_antierr.test(res.body)) {
-			const Data = JSON.stringify(res.body);
-			const Dt_Check = Data.split('2Fhome.php&amp;gfid=')[1];
-			if (Dt_Check == undefined) return res;
-			const fid = Dt_Check.split("\\\\")[0];
-			if (Dt_Check == undefined || Dt_Check == "") return res;
-			const final_fid = fid.split(`\\`)[0];
-			if (final_fid == undefined || final_fid == '') return res;
-			const redirectlink = redirectArr[1] + "a/preferences.php?basic_site_devices=m_basic&uri=" + encodeURIComponent("https://m.facebook.com/home.php") + "&gfid=" + final_fid;
-			return utils.get(redirectlink, jar, null, globalOptions).then(utils.saveCookies(jar));
-		}
-		else return res;
-	}
-
-	function redirect(res) {
-		const reg = /<meta http-equiv="refresh" content="0;url=([^"]+)[^>]+>/;
-		redirectArr = reg.exec(res.body);
-		if (redirectArr && redirectArr[1]) return utils.get(redirectArr[1], jar, null, globalOptions).then(utils.saveCookies(jar));
-		return res;
-	}
-
-	mainPromise = mainPromise
-		.then(res => redirect(res))
-		.then(res => checkAndFixErr(res))
-		//fix via login with defaut UA return WWW.facebook.com not m.facebook.com
-		.then(function (res) {
-			const Regex_Via = /MPageLoadClientMetrics/gs; //default for normal account, can easily get region, without this u can't get region in some case but u can run normal
-			if (!Regex_Via.test(res.body)) {
-				//www.facebook.com
-				globalOptions.userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1";
-				return utils.get('https://www.facebook.com/', jar, null, globalOptions, { noRef: true }).then(utils.saveCookies(jar));
-			}
-			else return res;
-		})
-		.then(res => redirect(res))
-		.then(res => checkAndFixErr(res))
-		.then(function (res) {
-			const html = res.body;
-			const stuff = buildAPI(globalOptions, html, jar);
-			ctx = stuff[0];
-			api = stuff[2];
-			return res;
-		});
-
-	// given a pageID we log in as a page
-	if (globalOptions.pageID) {
-		mainPromise = mainPromise
-			.then(function () {
-				return utils.get('https://www.facebook.com/' + ctx.globalOptions.pageID + '/messages/?section=messages&subsection=inbox', ctx.jar, null, globalOptions);
-			})
-			.then(function (resData) {
-				let url = utils.getFrom(resData.body, 'window.location.replace("https:\\/\\/www.facebook.com\\', '");').split('\\').join('');
-				url = url.substring(0, url.length - 1);
-				return utils.get('https://www.facebook.com' + url, ctx.jar, null, globalOptions);
-			});
-	}
-
-	// At the end we call the callback or catch an exception
-	mainPromise
-		.then(function () {
-			log.info("login", 'Done logging in.');
-			return callback(null, api);
-		})
-		.catch(function (e) {
-			log.error("login", e.error || e);
-			callback(e);
-		});
-}
-
-function login(loginData, options, callback) {
-	if (utils.getType(options) === 'Function' || utils.getType(options) === 'AsyncFunction') {
-		callback = options;
-		options = {};
-	}
-
-	const globalOptions = {
-		selfListen: false,
-		selfListenEvent: false,
-		listenEvents: false,
-		listenTyping: false,
-		updatePresence: false,
-		forceLogin: false,
-		autoMarkDelivery: true,
-		autoMarkRead: false,
-		autoReconnect: true,
-		logRecordSize: defaultLogRecordSize,
-		online: false,
-		emitReady: false,
-		userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/600.3.18 (KHTML, like Gecko) Version/8.0.3 Safari/600.3.18"
-	};
-
-	setOptions(globalOptions, options);
-
-	let prCallback = null;
-	let returnPromise;
-	if (utils.getType(callback) !== "Function" && utils.getType(callback) !== "AsyncFunction") {
-		let rejectFunc = null;
-		let resolveFunc = null;
-		returnPromise = new Promise(function (resolve, reject) {
-			resolveFunc = resolve;
-			rejectFunc = reject;
-		});
-		prCallback = function (error, api) {
-			if (error) {
-				return rejectFunc(error);
-			}
-			return resolveFunc(api);
-		};
-		callback = prCallback;
-	}
-	loginHelper(loginData.appState, loginData.email, loginData.password, globalOptions, callback, prCallback);
-	return returnPromise;
-}
-
-module.exports = login;
+        let Data = JSON.parse(res.body);
+            if (global.Fca.Require.FastConfig.Stable_Version.Accept == true) {
+                if (Data.Stable_Version.Valid_Version.includes(global.Fca.Require.FastConfig.Stable_Version.Version)) {
+                    let TimeStamp = Database(true).get('Check_Update');
+                        if (TimeStamp == null || TimeStamp == undefined || Date.now() - TimeStamp > 300000) {
+                            var Check_Update = require('./Extra/Src/Check_Update.js');
+                        await Check_Update(global.Fca.Require.FastConfig.Stable_Version.Version);
+                    }
+                }
+                else {
+                    log.warn("[ FCA-UPDATE ] •", "Error Stable Version, Please Check Your Stable Version in FastConfig.json, Automatically turn off Stable Version!");
+                        global.Fca.Require.FastConfig.Stable_Version.Accept = false;
+                        global.Fca.Require.fs.writeFileSync(process.cwd() + "/FastConfigFca.json", JSON.stringify(global.Fca.Require.FastConfig, null, "\t"));
+                    process.exit(1);
+                }
+            }
+            else {
+                if (Data.HasProblem == true || Data.ForceUpdate == true) {
+                    let TimeStamp = Database(true).get('Instant_Update');
+                        if (TimeStamp == null || TimeStamp == undefined || Date.now() - TimeStamp > 500) {
+                            var Instant_Update = require('./Extra/Src/Instant_Update.js');
+                        await Instant_Update()
+                    }
+                }
+                else {
+                    let TimeStamp = Database(true).get('Check_Update');
+                        if (TimeStamp == null || TimeStamp == undefined || Date.now() - TimeStamp > 300000) {
+                            var Check_Update = require('./Extra/Src/Check_Update.js');
+                        await Check_Update()
+                    } 
+                }
+            }
+        return login(loginData, options, callback);
+    }).catch(function(err) {
+        console.log(err)
+            log.error("[ FCA-UPDATE ] •",Language.UnableToConnect);
+            log.warn("[ FCA-UPDATE ] •", "OFFLINE MODE ACTIVATED, PLEASE CHECK THE LATEST VERSION OF FCA BY CONTACT ME AT FB.COM/LAZIC.KANZU");
+        return login(loginData, options, callback);
+    });
+    **/
+   //temp disabled
+    try {
+        login(loginData, options, callback);
+    }
+    catch (e) {
+        console.log(e)
+    }
+};
