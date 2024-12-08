@@ -491,11 +491,7 @@ async function getAppStateToLogin(loginWithEmail) {
 					}))
 					.filter(i => i.key && i.value && i.key != "x-referer");
 			}
-			if (!await checkLiveCookie(appState.map(i => i.key + "=" + i.value).join("; "), facebookAccount.userAgent)) {
-				const error = new Error("Cookie is invalid");
-				error.name = "COOKIE_INVALID";
-				throw error;
-			}
+			
 		}
 	}
 	catch (err) {
